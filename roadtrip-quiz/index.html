@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Road Trip Quiz 🚗</title>
+  <meta name="description" content="Couples road trip quiz game — daily quizzes, celebrity guessing, lightning rounds and more." />
+  <meta name="theme-color" content="#1D9E75" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Road Trip Quiz" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+
+  <!-- ============================================================
+       SETUP INSTRUCTIONS
+       ============================================================
+       1. Create a free Firebase project at https://console.firebase.google.com
+          - Click "Add project", give it a name (e.g. "roadtrip-quiz")
+          - Disable Google Analytics (not needed)
+          - Click "Create project"
+
+       2. Add a Web App
+          - In your project, click the </> (Web) icon
+          - Register app with a nickname (e.g. "roadtrip-quiz")
+          - Copy the firebaseConfig object shown
+
+       3. Replace the placeholder config below with YOUR values:
+  ============================================================ -->
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, set, get, onValue, push } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    // ============================================================
+    // REPLACE THIS WITH YOUR FIREBASE CONFIG
+    // ============================================================
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+      projectId: "YOUR_PROJECT",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+    // ============================================================
+
+    let db = null;
+    let firebaseReady = false;
+
+    try {
+      const app = initializeApp(firebaseConfig);
+      db = getDatabase(app);
+      firebaseReady = true;
+      window._db = db;
+      window._dbRef = ref;
+      window._dbSet = set;
+      window._dbGet = get;
+      window._dbOnValue = onValue;
+      window._dbPush = push;
+      window._firebaseReady = true;
+      console.log("Firebase connected ✓");
+    } catch(e) {
+      console.warn("Firebase not configured — running in local mode:", e.message);
+      window._firebaseReady = false;
+    }
+  </script>
+
+  <style>
+    :root {
+      --green: #1D9E75;
+      --green-light: #E1F5EE;
+      --green-dark: #085041;
+      --red: #E24B4A;
+      --red-light: #FCEBEB;
+      --red-dark: #501313;
+      --amber-light: #FAEEDA;
+      --amber-dark: #633806;
+      --purple-light: #EEEDFE;
+      --purple: #7F77DD;
+      --purple-dark: #3C3489;
+      --blue-light: #E6F1FB;
+      --blue-dark: #0C447C;
+      --bg: #ffffff;
+      --bg2: #f5f5f3;
+      --bg3: #eeece8;
+      --text: #1a1a1a;
+      --text2: #666;
+      --text3: #999;
+      --border: rgba(0,0,0,0.12);
+      --border2: rgba(0,0,0,0.2);
+      --radius: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1a1a1a;
+        --bg2: #242424;
+        --bg3: #2e2e2e;
+        --text: #f0f0f0;
+        --text2: #aaa;
+        --text3: #666;
+        --border: rgba(255,255,255,0.12);
+        --border2: rgba(255,255,255,0.2);
+        --green-light: #0a3028;
+        --green-dark: #9FE1CB;
+        --red-light: #2a1010;
+        --red-dark: #F09595;
+        --amber-light: #2a1e08;
+        --amber-dark: #FAC775;
+        --purple-light: #1a1940;
+        --purple-dark: #AFA9EC;
+        --blue-light: #0a1e30;
+        --blue-dark: #85B7EB;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg3); color: var(--text); }
+    body { max-width: 480px; margin: 0 auto; background: var(--bg); min-height: 100%; }
+
+    .screen { display: none; padding: 1rem; min-height: 100vh; }
+    .screen.active { display: block; }
+
+    /* Header */
+    .app-header { text-align: center; padding: 1.5rem 1rem 0.75rem; }
+    .app-header h1 { font-size: 22px; font-weight: 600; color: var(--text); }
+    .app-header p { font-size: 14px; color: var(--text2); margin-top: 3px; }
+
+    /* Sync indicator */
+    .sync-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); margin-right: 5px; vertical-align: middle; }
+    .sync-dot.offline { background: var(--text3); }
+    .sync-status { font-size: 12px; color: var(--text3); text-align: center; padding: 4px 0 8px; }
+
+    /* Score cards */
+    .score-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0.75rem 0; }
+    .score-card { background: var(--bg2); border-radius: var(--radius); padding: 10px 12px; text-align: center; border: 1px solid transparent; }
+    .score-card.active-player { border-color: var(--green); }
+    .score-card .sname { font-size: 12px; color: var(--text2); margin-bottom: 2px; }
+    .score-card .spts { font-size: 22px; font-weight: 600; color: var(--text); }
+
+    /* Pills & badges */
+    .pill { display: inline-block; font-size: 11px; padding: 3px 10px; border-radius: 999px; font-weight: 600; }
+    .pill-green { background: var(--green-light); color: var(--green-dark); }
+    .pill-amber { background: var(--amber-light); color: var(--amber-dark); }
+    .pill-red { background: var(--red-light); color: var(--red-dark); }
+    .pill-purple { background: var(--purple-light); color: var(--purple-dark); }
+    .pill-blue { background: var(--blue-light); color: var(--blue-dark); }
+
+    /* Cards */
+    .card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin: 0.75rem 0; }
+    .card-surface { background: var(--bg2); border-radius: var(--radius-lg); padding: 1rem; margin: 0.5rem 0; }
+
+    /* Question */
+    .q-num { font-size: 12px; color: var(--text3); margin-bottom: 6px; }
+    .q-text { font-size: 17px; font-weight: 600; color: var(--text); line-height: 1.4; }
+
+    /* Options */
+    .opts { display: flex; flex-direction: column; gap: 8px; margin: 0.75rem 0; }
+    .opt-btn { background: var(--bg); border: 1px solid var(--border2); border-radius: var(--radius); padding: 13px 14px; text-align: left; font-size: 15px; color: var(--text); cursor: pointer; transition: background 0.1s; width: 100%; }
+    .opt-btn:active { background: var(--bg2); }
+    .opt-btn.correct { background: var(--green-light); border-color: var(--green); color: var(--green-dark); }
+    .opt-btn.wrong { background: var(--red-light); border-color: var(--red); color: var(--red-dark); }
+    .opt-btn:disabled { cursor: default; }
+
+    /* Result banners */
+    .result { border-radius: var(--radius); padding: 10px 14px; margin: 8px 0; font-size: 14px; font-weight: 600; }
+    .result.correct { background: var(--green-light); color: var(--green-dark); }
+    .result.wrong { background: var(--red-light); color: var(--red-dark); }
+    .fact { font-size: 13px; color: var(--text2); margin-top: 6px; line-height: 1.5; }
+
+    /* Buttons */
+    .btn { border-radius: var(--radius); padding: 13px; width: 100%; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; border: none; }
+    .btn-primary { background: var(--text); color: var(--bg); }
+    .btn-primary:active { opacity: 0.85; }
+    .btn-secondary { background: transparent; border: 1px solid var(--border2); color: var(--text); }
+    .btn-green { background: var(--green); color: white; }
+    .btn-danger { background: transparent; border: 1px solid var(--red); color: var(--red); }
+
+    /* Home grid */
+    .home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0.5rem 0; }
+    .home-tile { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.1rem 0.75rem; text-align: center; cursor: pointer; }
+    .home-tile:active { background: var(--bg2); }
+    .tile-icon { font-size: 28px; margin-bottom: 6px; }
+    .tile-title { font-size: 13px; font-weight: 600; color: var(--text); }
+    .tile-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+    /* Navigation row */
+    .nav-row { display: flex; align-items: center; gap: 8px; padding: 0.75rem 0 0.25rem; }
+    .nav-back { background: transparent; border: 1px solid var(--border2); border-radius: var(--radius); padding: 8px 14px; font-size: 14px; color: var(--text); cursor: pointer; }
+    .nav-title { font-size: 14px; font-weight: 600; color: var(--text); }
+
+    /* Who turn */
+    .who-turn { background: var(--bg2); border-radius: var(--radius); padding: 10px 14px; text-align: center; margin: 6px 0; font-size: 14px; color: var(--text2); }
+    .who-turn strong { color: var(--text); }
+
+    /* Progress bar */
+    .progress { height: 4px; background: var(--border); border-radius: 2px; margin: 8px 0; }
+    .progress-fill { height: 4px; background: var(--green); border-radius: 2px; transition: width 0.3s; }
+
+    /* WYR */
+    .wyr-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .wyr-btn { background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--radius); padding: 14px 10px; font-size: 14px; color: var(--text); cursor: pointer; line-height: 1.3; }
+    .wyr-btn:active { background: var(--green-light); border-color: var(--green); color: var(--green-dark); }
+    .wyr-reveal { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+    .wyr-choice { border-radius: var(--radius); padding: 10px; font-size: 13px; text-align: center; }
+    .wyr-choice.a { background: var(--blue-light); color: var(--blue-dark); }
+    .wyr-choice.b { background: var(--purple-light); color: var(--purple-dark); }
+
+    /* Clues */
+    .clue-item { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text); line-height: 1.5; }
+    .clue-item:last-child { border-bottom: none; }
+    .clue-num { font-size: 11px; color: var(--text3); margin-bottom: 2px; }
+
+    /* History */
+    .history-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .history-row:last-child { border-bottom: none; }
+    .history-date { font-size: 13px; font-weight: 600; color: var(--text); }
+    .history-meta { font-size: 12px; color: var(--text2); margin-top: 2px; }
+
+    /* Settings */
+    .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text); }
+    .setting-row:last-child { border-bottom: none; }
+    .name-input { background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--radius); padding: 8px 10px; font-size: 14px; color: var(--text); width: 130px; }
+    .section-label { font-size: 12px; font-weight: 600; color: var(--text2); letter-spacing: 0.04em; text-transform: uppercase; margin: 1.25rem 0 0.5rem; }
+
+    /* Category chips */
+    .cat-chip { padding: 7px 13px; border: 1px solid var(--border2); border-radius: 999px; font-size: 12px; color: var(--text2); cursor: pointer; background: var(--bg); display: inline-block; margin: 3px; }
+    .cat-chip.selected { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+    /* Guest */
+    .guest-pill { background: var(--purple-light); color: var(--purple-dark); border-radius: 999px; padding: 5px 12px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; margin: 3px; }
+    .remove-x { background: none; border: none; color: var(--purple); cursor: pointer; font-size: 16px; line-height: 1; padding: 0; }
+    .guest-banner { background: var(--purple-light); border-radius: var(--radius); padding: 10px 14px; margin: 6px 0; display: flex; align-items: center; justify-content: space-between; }
+    .guest-banner span { font-size: 13px; color: var(--purple-dark); }
+
+    /* Lightning */
+    .timer-big { font-size: 28px; font-weight: 700; color: var(--text); }
+
+    /* Final */
+    .final-trophy { font-size: 52px; text-align: center; margin: 1rem 0 0.5rem; }
+    .final-winner { font-size: 22px; font-weight: 700; color: var(--text); text-align: center; }
+    .final-score { font-size: 14px; color: var(--text2); text-align: center; margin-top: 4px; }
+
+    /* Loading */
+    .loading { text-align: center; padding: 2.5rem 1rem; color: var(--text2); font-size: 14px; }
+    .loading-icon { font-size: 32px; margin-bottom: 10px; }
+
+    /* Stat row */
+    .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .stat-row:last-child { border-bottom: none; }
+
+    /* Review */
+    .review-q { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; margin: 6px 0; }
+
+    /* Setup screen */
+    .setup-step { background: var(--bg2); border-radius: var(--radius-lg); padding: 1rem; margin: 0.75rem 0; }
+    .step-num { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--green); color: white; font-size: 12px; font-weight: 700; margin-right: 8px; flex-shrink: 0; }
+    .step-title { font-size: 14px; font-weight: 600; color: var(--text); display: flex; align-items: center; margin-bottom: 8px; }
+    .step-body { font-size: 13px; color: var(--text2); line-height: 1.6; padding-left: 32px; }
+    .code-block { background: var(--bg3); border-radius: var(--radius); padding: 8px 10px; font-family: monospace; font-size: 12px; color: var(--text); margin: 6px 0; word-break: break-all; }
+    .setup-note { background: var(--amber-light); border-radius: var(--radius); padding: 10px 14px; font-size: 13px; color: var(--amber-dark); margin: 0.75rem 0; line-height: 1.5; }
+
+    /* iOS home bar padding */
+    @supports (padding-bottom: env(safe-area-inset-bottom)) {
+      body { padding-bottom: env(safe-area-inset-bottom); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===================== HOME ===================== -->
+<div id="screen-home" class="screen active">
+  <div class="app-header">
+    <div style="font-size:38px;margin-bottom:6px;">🚗</div>
+    <h1>Road Trip Quiz</h1>
+    <p id="home-subtitle">Alex & Abbie</p>
+  </div>
+  <div class="sync-status"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Connecting...</span></div>
+  <div id="guest-active-banner" style="display:none;">
+    <div class="guest-banner">
+      <span>🎮 Guest mode · <span id="guest-names-label"></span></span>
+      <button class="nav-back" style="font-size:12px;padding:5px 10px;" onclick="exitGuestMode()">Exit</button>
+    </div>
+  </div>
+  <div class="score-bar">
+    <div class="score-card"><div class="sname" id="p1-name-home">Alex</div><div class="spts" id="p1-score-home">0</div></div>
+    <div class="score-card"><div class="sname" id="p2-name-home">Abbie</div><div class="spts" id="p2-score-home">0</div></div>
+  </div>
+  <div id="daily-banner" style="margin:0.5rem 0;"></div>
+  <div class="home-grid">
+    <div class="home-tile" onclick="goDaily()">
+      <div class="tile-icon">📅</div>
+      <div class="tile-title">Daily Quiz</div>
+      <div class="tile-sub" id="daily-tile-sub">Loading...</div>
+    </div>
+    <div class="home-tile" onclick="startCeleb()">
+      <div class="tile-icon">🌟</div>
+      <div class="tile-title">Guess the Celeb</div>
+      <div class="tile-sub">5 clues, earn points</div>
+    </div>
+    <div class="home-tile" onclick="showScreen('screen-lightning')">
+      <div class="tile-icon">⏱</div>
+      <div class="tile-title">Lightning Round</div>
+      <div class="tile-sub">60 sec each</div>
+    </div>
+    <div class="home-tile" onclick="startWyr()">
+      <div class="tile-icon">⚡</div>
+      <div class="tile-title">Would You Rather</div>
+      <div class="tile-sub">Reveal & compare</div>
+    </div>
+  </div>
+  <div class="home-grid">
+    <div class="home-tile" onclick="showScreen('screen-history')">
+      <div class="tile-icon">📚</div>
+      <div class="tile-title">Quiz History</div>
+      <div class="tile-sub">Past daily quizzes</div>
+    </div>
+    <div class="home-tile" onclick="showScreen('screen-settings')">
+      <div class="tile-icon">⚙️</div>
+      <div class="tile-title">Settings</div>
+      <div class="tile-sub">Names, guests & more</div>
+    </div>
+  </div>
+  <div style="text-align:center;margin-top:0.75rem;">
+    <button class="nav-back" onclick="showScreen('screen-setup')" style="font-size:12px;color:var(--text3);border-color:var(--border);">🔧 Firebase setup guide</button>
+  </div>
+</div>
+
+<!-- ===================== DAILY QUIZ ===================== -->
+<div id="screen-daily" class="screen">
+  <div class="nav-row">
+    <button class="nav-back" onclick="showScreen('screen-home')">← Back</button>
+    <span class="nav-title" id="daily-screen-title">Today's Quiz</span>
+  </div>
+  <div id="guest-daily-note" style="display:none;" class="guest-banner"><span>🎮 Guest mode — scores not saved to totals</span></div>
+  <div class="score-bar">
+    <div class="score-card" id="p1-daily-card"><div class="sname" id="p1-name-daily">Alex</div><div class="spts" id="p1-daily-pts">0</div></div>
+    <div class="score-card" id="p2-daily-card"><div class="sname" id="p2-name-daily">Abbie</div><div class="spts" id="p2-daily-pts">0</div></div>
+  </div>
+  <div id="quiz-area"></div>
+</div>
+
+<!-- ===================== CELEB ===================== -->
+<div id="screen-celeb" class="screen">
+  <div class="nav-row">
+    <button class="nav-back" onclick="showScreen('screen-home')">← Back</button>
+    <span class="nav-title">Guess the Celebrity</span>
+  </div>
+  <div class="score-bar">
+    <div class="score-card" id="p1-celeb-card"><div class="sname" id="p1-name-celeb">Alex</div><div class="spts" id="p1-celeb-pts">0</div></div>
+    <div class="score-card" id="p2-celeb-card"><div class="sname" id="p2-name-celeb">Abbie</div><div class="spts" id="p2-celeb-pts">0</div></div>
+  </div>
+  <div id="celeb-area"></div>
+</div>
+
+<!-- ===================== LIGHTNING ===================== -->
+<div id="screen-lightning" class="screen">
+  <div class="nav-row">
+    <button class="nav-back" onclick="showScreen('screen-home')">← Back</button>
+    <span class="nav-title">Lightning Round</span>
+  </div>
+  <div id="lightning-setup">
+    <div class="card" style="text-align:left;">
+      <p style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px;">How it works</p>
+      <p style="font-size:14px;color:var(--text2);line-height:1.6;">One player holds the phone. <strong>60 seconds</strong> to shout answers — tap ✓ or ✗. Then swap!</p>
+    </div>
+    <div style="margin:0.5rem 0;">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:6px;">Category:</div>
+      <div id="lightning-cats">
+        <span class="cat-chip selected" data-cat="Mix">🎲 Mix</span>
+        <span class="cat-chip" data-cat="Pop Culture">🎬 Pop Culture</span>
+        <span class="cat-chip" data-cat="Science">🔬 Science</span>
+        <span class="cat-chip" data-cat="History">📜 History</span>
+        <span class="cat-chip" data-cat="Music">🎵 Music</span>
+        <span class="cat-chip" data-cat="Sport">⚽ Sport</span>
+        <span class="cat-chip" data-cat="Geography">🌍 Geography</span>
+        <span class="cat-chip" data-cat="Food">🍕 Food</span>
+      </div>
+    </div>
+    <div class="who-turn">Who goes first? Tap start when ready</div>
+    <button class="btn btn-primary" onclick="startLightning()">Start <span id="p1-name-lightning">Alex</span>'s round →</button>
+  </div>
+  <div id="lightning-game" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <span class="timer-big" id="timer-display">60</span>
+      <div style="display:flex;gap:8px;">
+        <span class="pill pill-green" id="lc-badge">0 ✓</span>
+        <span class="pill pill-red" id="lw-badge">0 ✗</span>
+      </div>
+    </div>
+    <div class="progress"><div class="progress-fill" id="timer-bar" style="width:100%;"></div></div>
+    <div class="card" style="margin-top:0.5rem;">
+      <div class="q-text" id="lq-text">Loading...</div>
+      <div style="font-size:13px;color:var(--text2);margin-top:8px;" id="la-text"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+      <button class="btn" style="margin:0;background:var(--red-light);border:1px solid var(--red);color:var(--red-dark);" onclick="lightningAnswer(false)">✗ Wrong</button>
+      <button class="btn btn-green" style="margin:0;" onclick="lightningAnswer(true)">✓ Correct</button>
+    </div>
+    <div style="font-size:12px;color:var(--text3);text-align:center;margin-top:8px;" id="l-who-label">Round in progress</div>
+  </div>
+</div>
+
+<!-- ===================== WYR ===================== -->
+<div id="screen-wyr" class="screen">
+  <div class="nav-row">
+    <button class="nav-back" onclick="showScreen('screen-home')">← Back</button>
+    <span class="nav-title">Would You Rather</span>
+  </div>
+  <div id="wyr-content"></div>
+</div>
+
+<!-- ===================== HISTORY ===================== -->
+<div id="screen-history" class="screen">
+  <div class="nav-row">
+    <button class="nav-back" onclick="showScreen('screen-home')">← Back</button>
+    <span class="nav-title">Quiz History</span>
+  </div>
+  <div id="history-content"></div>
+</div>
+
+<!-- ===================== REVIEW ===================== -->
+<div id="screen-review" class="screen">
+  <div class="nav-row">
+    <button class="nav-back" onclick="showScreen('screen-history')">← History</button>
+    <span class="nav-title" id="review-title">Quiz Review</span>
+  </div>
+  <div id="review-content"></div>
+</div>
+
+<!-- ===================== SETTINGS ===================== -->
+<div id="screen-settings" class="screen">
+  <div class="nav-row">
+    <button class="nav-back" onclick="saveSettings()">← Save</button>
+    <span class="nav-title">Settings</span>
+  </div>
+  <div class="section-label">Main players</div>
+  <div class="card">
+    <div class="setting-row">
+      <span>Player 1</span><input type="text" class="name-input" id="set-p1" value="Alex" maxlength="12" />
+    </div>
+    <div class="setting-row">
+      <span>Player 2</span><input type="text" class="name-input" id="set-p2" value="Abbie" maxlength="12" />
+    </div>
+  </div>
+  <div class="section-label">Guest players</div>
+  <div class="card">
+    <p style="font-size:13px;color:var(--text2);margin-bottom:10px;line-height:1.5;">Add guests for when others join. Their scores are tracked separately and don't affect Alex & Abbie's totals.</p>
+    <div id="guest-list" style="margin-bottom:10px;"></div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input type="text" id="guest-name-input" placeholder="Guest name..." maxlength="14" style="flex:1;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);padding:8px 10px;font-size:14px;color:var(--text);" />
+      <button class="nav-back" onclick="addGuest()">Add</button>
+    </div>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+      <div class="setting-row" style="padding:0 0 10px;">
+        <span>Guest mode active</span>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="guest-mode-toggle" style="width:20px;height:20px;cursor:pointer;accent-color:var(--green);" />
+          <span style="font-size:13px;color:var(--text2);" id="guest-toggle-label">Off</span>
+        </label>
+      </div>
+      <div id="guest-player-selects" style="display:none;">
+        <div style="font-size:13px;color:var(--text2);margin-bottom:8px;">Who's playing this session:</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Position 1</div>
+            <select id="guest-p1-select" style="width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);padding:8px;font-size:13px;color:var(--text);"></select>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Position 2</div>
+            <select id="guest-p2-select" style="width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);padding:8px;font-size:13px;color:var(--text);"></select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="section-label">Guest session stats</div>
+  <div class="card" id="guest-stats-card">
+    <div style="font-size:13px;color:var(--text3);">No guest sessions yet.</div>
+  </div>
+  <div class="section-label">Daily quiz categories</div>
+  <div id="daily-cats" style="margin-bottom:0.5rem;">
+    <span class="cat-chip selected" data-cat="General Knowledge">🌍 General</span>
+    <span class="cat-chip selected" data-cat="Pop Culture">🎬 Pop Culture</span>
+    <span class="cat-chip selected" data-cat="Science & Nature">🔬 Science</span>
+    <span class="cat-chip selected" data-cat="Music">🎵 Music</span>
+    <span class="cat-chip selected" data-cat="History">📜 History</span>
+    <span class="cat-chip selected" data-cat="Sport">⚽ Sport</span>
+    <span class="cat-chip selected" data-cat="Geography">🌍 Geography</span>
+    <span class="cat-chip" data-cat="Food & Drink">🍕 Food</span>
+    <span class="cat-chip" data-cat="Tech">💻 Tech</span>
+  </div>
+  <div class="section-label">Danger zone</div>
+  <button class="btn btn-danger" onclick="resetScores()">Reset main player scores</button>
+</div>
+
+<!-- ===================== FINAL ===================== -->
+<div id="screen-final" class="screen">
+  <div id="final-content"></div>
+</div>
+
+<!-- ===================== SETUP GUIDE ===================== -->
+<div id="screen-setup" class="screen">
+  <div class="nav-row">
+    <button class="nav-back" onclick="showScreen('screen-home')">← Back</button>
+    <span class="nav-title">Firebase Setup Guide</span>
+  </div>
+  <p style="font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:1rem;">Follow these steps to enable real-time sync between yours and Abbie's phones. Takes about 10 minutes and is completely free.</p>
+
+  <div class="setup-step">
+    <div class="step-title"><span class="step-num">1</span>Create a Firebase project</div>
+    <div class="step-body">
+      Go to <strong>console.firebase.google.com</strong> and sign in with a Google account.<br><br>
+      Click <strong>"Add project"</strong>, name it <em>roadtrip-quiz</em>, disable Analytics, then click <strong>"Create project"</strong>.
+    </div>
+  </div>
+
+  <div class="setup-step">
+    <div class="step-title"><span class="step-num">2</span>Add a web app & get your config</div>
+    <div class="step-body">
+      In your new project, click the <strong>&lt;/&gt;</strong> (Web) icon.<br><br>
+      Name the app <em>roadtrip-quiz</em> and click <strong>"Register app"</strong>.<br><br>
+      Copy the <strong>firebaseConfig</strong> object — you'll need it in step 5.
+    </div>
+  </div>
+
+  <div class="setup-step">
+    <div class="step-title"><span class="step-num">3</span>Enable Realtime Database</div>
+    <div class="step-body">
+      In the left sidebar, go to <strong>Build → Realtime Database</strong>.<br><br>
+      Click <strong>"Create Database"</strong>, choose your region, then select <strong>"Start in test mode"</strong>.<br><br>
+      <div class="setup-note">⚠️ Test mode is open — fine for personal use. If you want to lock it down, go to Rules and set <code>.read</code> and <code>.write</code> to <code>true</code> with an auth condition later.</div>
+    </div>
+  </div>
+
+  <div class="setup-step">
+    <div class="step-title"><span class="step-num">4</span>Create a GitHub repo & upload files</div>
+    <div class="step-body">
+      Go to <strong>github.com</strong>, create a free account, then click <strong>"New repository"</strong>.<br><br>
+      Name it <em>roadtrip-quiz</em>, make it <strong>Public</strong>, and create it.<br><br>
+      Upload all 4 files from the ZIP: <strong>index.html</strong>, <strong>manifest.json</strong>, <strong>sw.js</strong>, and <strong>icon-192.png</strong>.<br><br>
+      Then go to <strong>Settings → Pages</strong>, set Source to <strong>Deploy from branch → main</strong>, and click Save. Your URL will be:<br>
+      <div class="code-block">https://YOUR-USERNAME.github.io/roadtrip-quiz</div>
+    </div>
+  </div>
+
+  <div class="setup-step">
+    <div class="step-title"><span class="step-num">5</span>Add your Firebase config to index.html</div>
+    <div class="step-body">
+      Open <strong>index.html</strong> in a text editor. Find the section that says <code>REPLACE THIS WITH YOUR FIREBASE CONFIG</code> and paste in your config values.<br><br>
+      The config looks like:
+      <div class="code-block">apiKey: "AIzaSy...",<br>authDomain: "roadtrip-quiz.firebaseapp.com",<br>databaseURL: "https://roadtrip-quiz-default-rtdb.firebaseio.com",<br>...</div>
+      Save the file and re-upload it to GitHub.
+    </div>
+  </div>
+
+  <div class="setup-step">
+    <div class="step-title"><span class="step-num">6</span>Add to home screen on both phones</div>
+    <div class="step-body">
+      Open the GitHub Pages URL in Safari (iPhone) or Chrome (Android).<br><br>
+      <strong>iPhone:</strong> Tap the Share button → "Add to Home Screen" → Add<br>
+      <strong>Android:</strong> Tap the 3-dot menu → "Add to Home Screen" → Add<br><br>
+      The app will appear on your home screen with its own icon and work like a native app. Both phones sync automatically via Firebase. 🎉
+    </div>
+  </div>
+
+  <div class="setup-note" style="margin-top:1rem;">
+    💡 The Anthropic Claude API key is already in the app — it's called via the API endpoint and handled securely. You don't need to add it separately.
+  </div>
+  <button class="btn btn-primary" onclick="showScreen('screen-home')" style="margin-top:1rem;">Got it — back to app</button>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const TODAY = new Date().toISOString().slice(0,10);
+
+const G = {
+  p1: { name: 'Alex', score: 0, dailyPts: 0, lightningPts: 0, celebPts: 0 },
+  p2: { name: 'Abbie', score: 0, dailyPts: 0, lightningPts: 0, celebPts: 0 },
+  currentPlayer: 1,
+  quiz: { questions: [], current: 0, answered: false, p1Pts: 0, p2Pts: 0 },
+  celeb: { celebs: [], current: 0, clueIdx: 0, p1Pts: 0, p2Pts: 0, currentPlayer: 1, revealed: false },
+  selectedDailyCats: ['General Knowledge','Pop Culture','Science & Nature','Music','History','Sport','Geography'],
+  selectedLightningCat: 'Mix',
+  guestMode: false,
+  guests: [],
+  guestSession: { p1: '', p2: '' },
+  guestHistory: []
+};
+
+// ============================================================
+// FIREBASE / LOCAL STORAGE ABSTRACTION
+// ============================================================
+function fbReady() { return window._firebaseReady === true; }
+
+async function dbSet(path, value) {
+  if (fbReady()) {
+    await window._dbSet(window._dbRef(window._db, path), value);
+  } else {
+    localStorage.setItem('rtq_' + path.replace(/\//g,'_'), JSON.stringify(value));
+  }
+}
+
+async function dbGet(path) {
+  if (fbReady()) {
+    const snap = await window._dbGet(window._dbRef(window._db, path));
+    return snap.exists() ? snap.val() : null;
+  } else {
+    const v = localStorage.getItem('rtq_' + path.replace(/\//g,'_'));
+    return v ? JSON.parse(v) : null;
+  }
+}
+
+function updateSyncStatus() {
+  const dot = document.getElementById('sync-dot');
+  const label = document.getElementById('sync-label');
+  if (fbReady()) {
+    dot.className = 'sync-dot';
+    label.textContent = 'Synced across devices';
+  } else {
+    dot.className = 'sync-dot offline';
+    label.textContent = 'Local only — Firebase not configured';
+  }
+}
+
+// ============================================================
+// PERSIST / LOAD
+// ============================================================
+async function persistSettings() {
+  const data = {
+    p1name: G.p1.name, p2name: G.p2.name,
+    p1score: G.p1.score, p2score: G.p2.score,
+    p1daily: G.p1.dailyPts, p2daily: G.p2.dailyPts,
+    p1celeb: G.p1.celebPts, p2celeb: G.p2.celebPts,
+    p1lightning: G.p1.lightningPts, p2lightning: G.p2.lightningPts,
+    cats: G.selectedDailyCats,
+    guests: G.guests,
+    guestHistory: G.guestHistory
+  };
+  await dbSet('settings', data);
+}
+
+async function loadPersisted() {
+  updateSyncStatus();
+  // Small delay to let Firebase init
+  await new Promise(r => setTimeout(r, 800));
+  updateSyncStatus();
+  try {
+    const d = await dbGet('settings');
+    if (d) {
+      if (d.p1name) G.p1.name = d.p1name;
+      if (d.p2name) G.p2.name = d.p2name;
+      if (d.p1score) G.p1.score = d.p1score;
+      if (d.p2score) G.p2.score = d.p2score;
+      if (d.p1daily) G.p1.dailyPts = d.p1daily;
+      if (d.p2daily) G.p2.dailyPts = d.p2daily;
+      if (d.p1celeb) G.p1.celebPts = d.p1celeb;
+      if (d.p2celeb) G.p2.celebPts = d.p2celeb;
+      if (d.p1lightning) G.p1.lightningPts = d.p1lightning;
+      if (d.p2lightning) G.p2.lightningPts = d.p2lightning;
+      if (d.cats) G.selectedDailyCats = d.cats;
+      if (d.guests) G.guests = d.guests;
+      if (d.guestHistory) G.guestHistory = d.guestHistory;
+      document.getElementById('set-p1').value = G.p1.name;
+      document.getElementById('set-p2').value = G.p2.name;
+    }
+  } catch(e) { console.warn('Load error:', e); }
+  updateHomeScores();
+  checkTodayStatus();
+  renderGuestList();
+  renderGuestStats();
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+  if (id === 'screen-home') { updateHomeScores(); checkTodayStatus(); updateGuestBanner(); }
+  if (id === 'screen-history') renderHistory();
+  if (id === 'screen-settings') { renderGuestList(); renderGuestStats(); updateGuestToggles(); }
+  if (id === 'screen-lightning') {
+    document.getElementById('p1-name-lightning').textContent = activeName(1);
+    document.getElementById('lightning-game').style.display = 'none';
+    document.getElementById('lightning-setup').style.display = 'block';
+  }
+}
+
+function activeName(slot) {
+  if (G.guestMode) return slot === 1 ? G.guestSession.p1 : G.guestSession.p2;
+  return slot === 1 ? G.p1.name : G.p2.name;
+}
+
+function updateHomeScores() {
+  document.getElementById('p1-name-home').textContent = G.p1.name;
+  document.getElementById('p2-name-home').textContent = G.p2.name;
+  document.getElementById('p1-score-home').textContent = G.p1.score;
+  document.getElementById('p2-score-home').textContent = G.p2.score;
+  document.getElementById('home-subtitle').textContent = G.p1.name + ' & ' + G.p2.name;
+}
+
+function updateGuestBanner() {
+  const b = document.getElementById('guest-active-banner');
+  b.style.display = G.guestMode ? 'block' : 'none';
+  if (G.guestMode) document.getElementById('guest-names-label').textContent = G.guestSession.p1 + ' vs ' + G.guestSession.p2;
+}
+
+function exitGuestMode() { G.guestMode = false; updateGuestBanner(); updateHomeScores(); }
+
+// ============================================================
+// SETTINGS & GUESTS
+// ============================================================
+function saveSettings() {
+  G.p1.name = document.getElementById('set-p1').value || 'Player 1';
+  G.p2.name = document.getElementById('set-p2').value || 'Abbie';
+  G.selectedDailyCats = Array.from(document.querySelectorAll('#daily-cats .cat-chip.selected')).map(c => c.dataset.cat);
+  if (!G.selectedDailyCats.length) G.selectedDailyCats = ['General Knowledge'];
+  if (G.guestMode) {
+    G.guestSession.p1 = document.getElementById('guest-p1-select').value;
+    G.guestSession.p2 = document.getElementById('guest-p2-select').value;
+  }
+  persistSettings();
+  showScreen('screen-home');
+}
+
+function resetScores() {
+  if (!confirm('Reset main player scores?')) return;
+  ['p1','p2'].forEach(p => { G[p].score=0; G[p].dailyPts=0; G[p].lightningPts=0; G[p].celebPts=0; });
+  persistSettings(); updateHomeScores();
+}
+
+function addGuest() {
+  const inp = document.getElementById('guest-name-input');
+  const name = inp.value.trim();
+  if (!name || G.guests.includes(name)) return;
+  G.guests.push(name); persistSettings(); inp.value = '';
+  renderGuestList(); updateGuestSelects();
+}
+
+function removeGuest(name) {
+  G.guests = G.guests.filter(g => g !== name);
+  persistSettings(); renderGuestList(); updateGuestSelects();
+}
+
+function renderGuestList() {
+  const el = document.getElementById('guest-list');
+  if (!G.guests.length) { el.innerHTML = '<div style="font-size:13px;color:var(--text3);margin-bottom:6px;">No guests added yet.</div>'; return; }
+  el.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">' +
+    G.guests.map(g => `<span class="guest-pill">${g}<button class="remove-x" onclick="removeGuest('${g}')">×</button></span>`).join('') + '</div>';
+}
+
+function updateGuestToggles() {
+  document.getElementById('guest-mode-toggle').checked = G.guestMode;
+  document.getElementById('guest-toggle-label').textContent = G.guestMode ? 'On' : 'Off';
+  document.getElementById('guest-player-selects').style.display = G.guestMode ? 'block' : 'none';
+  updateGuestSelects();
+}
+
+function updateGuestSelects() {
+  const all = [G.p1.name, G.p2.name, ...G.guests];
+  ['guest-p1-select','guest-p2-select'].forEach((id, i) => {
+    const sel = document.getElementById(id);
+    const cur = i === 0 ? G.guestSession.p1 : G.guestSession.p2;
+    sel.innerHTML = all.map(n => `<option value="${n}" ${n===cur?'selected':''}>${n}</option>`).join('');
+  });
+}
+
+document.getElementById('guest-mode-toggle').addEventListener('change', function() {
+  G.guestMode = this.checked;
+  document.getElementById('guest-toggle-label').textContent = G.guestMode ? 'On' : 'Off';
+  document.getElementById('guest-player-selects').style.display = G.guestMode ? 'block' : 'none';
+  if (G.guestMode) {
+    const all = [G.p1.name, G.p2.name, ...G.guests];
+    G.guestSession.p1 = all[0]; G.guestSession.p2 = all[1] || all[0];
+    updateGuestSelects();
+  }
+});
+document.getElementById('guest-p1-select').addEventListener('change', function() { G.guestSession.p1 = this.value; });
+document.getElementById('guest-p2-select').addEventListener('change', function() { G.guestSession.p2 = this.value; });
+
+function renderGuestStats() {
+  const el = document.getElementById('guest-stats-card');
+  if (!G.guestHistory.length) { el.innerHTML = '<div style="font-size:13px;color:var(--text3);">No guest sessions yet.</div>'; return; }
+  const totals = {};
+  G.guestHistory.forEach(s => {
+    [s.p1name, s.p2name].forEach(n => { if (!totals[n]) totals[n] = {wins:0,games:0,pts:0}; totals[n].games++; });
+    if (s.winner) { if (!totals[s.winner]) totals[s.winner]={wins:0,games:0,pts:0}; totals[s.winner].wins++; }
+    totals[s.p1name].pts += s.p1pts||0;
+    totals[s.p2name].pts += s.p2pts||0;
+  });
+  el.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;">GUEST ALL-TIME STATS</div>' +
+    Object.entries(totals).map(([n,t]) => `<div class="stat-row"><span>${n}</span><span style="color:var(--text2);">${t.wins}W · ${t.pts}pts · ${t.games} game${t.games!==1?'s':''}</span></div>`).join('') +
+    `<div style="font-size:12px;color:var(--text3);margin-top:8px;">Not included in main leaderboard</div>`;
+}
+
+// ============================================================
+// CLAUDE API
+// ============================================================
+async function callClaude(prompt, maxTokens) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: maxTokens||1000, messages: [{ role:'user', content: prompt }] })
+  });
+  const data = await res.json();
+  return data.content[0].text;
+}
+
+function parseJSON(t) { return JSON.parse(t.replace(/```json|```/g,'').trim()); }
+
+function fmtDate(ds) {
+  const d = new Date(ds + 'T12:00:00');
+  return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'long', year:'numeric' });
+}
+
+// ============================================================
+// DAILY QUIZ
+// ============================================================
+async function checkTodayStatus() {
+  try {
+    const r = await dbGet('quizzes/' + TODAY);
+    if (r) {
+      if (r.completed) {
+        document.getElementById('daily-tile-sub').textContent = '✓ Completed today';
+        document.getElementById('daily-banner').innerHTML = `<div style="background:var(--bg2);border-radius:var(--radius);padding:10px 14px;font-size:13px;color:var(--text2);text-align:center;">Today: ${r.p1name} ${r.p1pts} — ${r.p2pts} ${r.p2name} · Come back tomorrow!</div>`;
+      } else {
+        document.getElementById('daily-tile-sub').textContent = 'In progress — resume';
+        document.getElementById('daily-banner').innerHTML = '';
+      }
+    } else {
+      document.getElementById('daily-tile-sub').textContent = 'Fresh quiz ready! 🌅';
+      document.getElementById('daily-banner').innerHTML = `<div style="background:var(--green-light);border-radius:var(--radius);padding:10px 14px;font-size:13px;color:var(--green-dark);text-align:center;">🌅 New day, fresh quiz ready!</div>`;
+    }
+  } catch(e) { document.getElementById('daily-tile-sub').textContent = 'Tap to play'; }
+}
+
+async function goDaily() {
+  showScreen('screen-daily');
+  const n1=activeName(1), n2=activeName(2);
+  document.getElementById('p1-name-daily').textContent = n1;
+  document.getElementById('p2-name-daily').textContent = n2;
+  document.getElementById('p1-daily-pts').textContent = 0;
+  document.getElementById('p2-daily-pts').textContent = 0;
+  document.getElementById('daily-screen-title').textContent = "Today's Quiz · " + fmtDate(TODAY);
+  document.getElementById('guest-daily-note').style.display = G.guestMode ? 'flex' : 'none';
+
+  if (!G.guestMode) {
+    try {
+      const saved = await dbGet('quizzes/' + TODAY);
+      if (saved) {
+        if (saved.completed) {
+          document.getElementById('quiz-area').innerHTML = `
+            <div class="card" style="text-align:center;padding:2rem 1rem;">
+              <div style="font-size:36px;margin-bottom:10px;">✅</div>
+              <div style="font-size:18px;font-weight:600;">Today's quiz done!</div>
+              <div style="font-size:14px;color:var(--text2);margin-top:4px;">${saved.p1name} ${saved.p1pts} — ${saved.p2pts} ${saved.p2name}</div>
+            </div>
+            <div style="font-size:13px;color:var(--text2);text-align:center;padding:0.5rem 0;">Come back tomorrow for a fresh quiz 🌅</div>
+            <button class="btn btn-secondary" onclick="reviewQuiz('${TODAY}')">Review today's questions</button>
+            <button class="btn btn-secondary" onclick="showScreen('screen-home')">Back to home</button>`;
+          document.getElementById('p1-daily-pts').textContent = saved.p1pts;
+          document.getElementById('p2-daily-pts').textContent = saved.p2pts;
+          return;
+        }
+        G.quiz = saved.quizState;
+        G.currentPlayer = saved.currentPlayer || 1;
+        document.getElementById('p1-daily-pts').textContent = G.quiz.p1Pts;
+        document.getElementById('p2-daily-pts').textContent = G.quiz.p2Pts;
+        renderDailyQ(); return;
+      }
+    } catch(e) {}
+  }
+
+  document.getElementById('quiz-area').innerHTML = `<div class="loading"><div class="loading-icon">✨</div><div>Generating today's quiz...</div><div style="font-size:12px;margin-top:4px;color:var(--text3);">${G.guestMode ? 'Guest session' : fmtDate(TODAY)}</div></div>`;
+
+  const cats = G.selectedDailyCats.join(', ');
+  const dateCtx = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  try {
+    const text = await callClaude(`Today is ${dateCtx}. Generate exactly 10 multiple-choice trivia questions for a UK couple's road trip quiz. Spread across: ${cats}. Make them current and fun — reference recent events, current sport, modern culture where relevant. Vary difficulty. Return ONLY valid JSON array:\n[{"q":"Question","opts":["A","B","C","D"],"ans":0,"cat":"Category","fact":"One fun fact in 1 sentence"}]\nans is 0-based index.`, 1400);
+    const questions = parseJSON(text);
+    G.quiz = { questions, current:0, p1Pts:0, p2Pts:0, answered:false };
+    G.currentPlayer = 1;
+    if (!G.guestMode) await dbSet('quizzes/' + TODAY, { quizState: G.quiz, currentPlayer:1, completed:false, date:TODAY });
+    renderDailyQ();
+  } catch(e) {
+    document.getElementById('quiz-area').innerHTML = `<div class="loading" style="color:var(--red);">Failed to load quiz.<br><button class="btn btn-secondary" style="margin-top:12px;width:auto;padding:8px 20px;" onclick="goDaily()">Retry</button></div>`;
+  }
+}
+
+function renderDailyQ() {
+  const q = G.quiz;
+  if (q.current >= q.questions.length) { showDailyResults(); return; }
+  const question = q.questions[q.current];
+  const pName = activeName(G.currentPlayer);
+  const pct = Math.round(q.current / q.questions.length * 100);
+  document.getElementById('p1-daily-pts').textContent = q.p1Pts;
+  document.getElementById('p2-daily-pts').textContent = q.p2Pts;
+  document.getElementById('p1-daily-card').classList.toggle('active-player', G.currentPlayer===1);
+  document.getElementById('p2-daily-card').classList.toggle('active-player', G.currentPlayer===2);
+  document.getElementById('quiz-area').innerHTML = `
+    <div class="who-turn">📱 Pass to <strong>${pName}</strong></div>
+    <div class="progress"><div class="progress-fill" style="width:${pct}%"></div></div>
+    <div class="card">
+      <div class="q-num">Question ${q.current+1} of ${q.questions.length}</div>
+      <span class="pill pill-blue" style="margin-bottom:8px;display:inline-block;">${question.cat}</span>
+      <div class="q-text">${question.q}</div>
+    </div>
+    <div class="opts">${question.opts.map((o,i)=>`<button class="opt-btn" onclick="answerDaily(${i})">${o}</button>`).join('')}</div>
+    <div id="result-area"></div>
+    <button class="btn btn-primary" id="next-btn" style="display:none;" onclick="nextDailyQ()">Next question →</button>`;
+}
+
+async function answerDaily(idx) {
+  if (G.quiz.answered) return;
+  G.quiz.answered = true;
+  const question = G.quiz.questions[G.quiz.current];
+  const correct = idx === question.ans;
+  question.playerAnswer = idx; question.playerWho = G.currentPlayer;
+  document.querySelectorAll('.opt-btn').forEach((b,i) => {
+    b.disabled = true;
+    if (i===question.ans) b.classList.add('correct');
+    else if (i===idx && !correct) b.classList.add('wrong');
+  });
+  if (correct) {
+    if (G.currentPlayer===1) G.quiz.p1Pts++; else G.quiz.p2Pts++;
+    document.getElementById('result-area').innerHTML = `<div class="result correct">✓ Correct! +1 for ${activeName(G.currentPlayer)}</div><div class="fact">💡 ${question.fact}</div>`;
+  } else {
+    document.getElementById('result-area').innerHTML = `<div class="result wrong">✗ The answer was "${question.opts[question.ans]}"</div><div class="fact">💡 ${question.fact}</div>`;
+  }
+  document.getElementById('p1-daily-pts').textContent = G.quiz.p1Pts;
+  document.getElementById('p2-daily-pts').textContent = G.quiz.p2Pts;
+  document.getElementById('next-btn').style.display = 'block';
+  if (!G.guestMode) {
+    try { await dbSet('quizzes/' + TODAY, { quizState: G.quiz, currentPlayer: G.currentPlayer, completed:false, date:TODAY }); } catch(e) {}
+  }
+}
+
+async function nextDailyQ() {
+  G.quiz.current++; G.quiz.answered = false;
+  G.currentPlayer = G.currentPlayer===1 ? 2 : 1;
+  if (!G.guestMode) {
+    try { await dbSet('quizzes/' + TODAY, { quizState: G.quiz, currentPlayer: G.currentPlayer, completed:false, date:TODAY }); } catch(e) {}
+  }
+  renderDailyQ();
+}
+
+async function showDailyResults() {
+  const n1=activeName(1), n2=activeName(2);
+  const winner = G.quiz.p1Pts>G.quiz.p2Pts ? n1 : G.quiz.p2Pts>G.quiz.p1Pts ? n2 : null;
+  if (G.guestMode) {
+    G.guestHistory.push({ date:TODAY, p1name:n1, p2name:n2, p1pts:G.quiz.p1Pts, p2pts:G.quiz.p2Pts, winner });
+    await persistSettings();
+  } else {
+    G.p1.score += G.quiz.p1Pts; G.p2.score += G.quiz.p2Pts;
+    G.p1.dailyPts += G.quiz.p1Pts; G.p2.dailyPts += G.quiz.p2Pts;
+    try { await dbSet('quizzes/' + TODAY, { date:TODAY, completed:true, p1name:n1, p2name:n2, p1pts:G.quiz.p1Pts, p2pts:G.quiz.p2Pts, winner, questions:G.quiz.questions }); } catch(e) {}
+    await persistSettings();
+  }
+  const gNote = G.guestMode ? `<div style="background:var(--purple-light);border-radius:var(--radius);padding:8px 14px;font-size:13px;color:var(--purple-dark);text-align:center;margin-top:8px;">🎮 Guest session — not added to main totals</div>` : '';
+  document.getElementById('final-content').innerHTML = `
+    <div style="padding:1rem;">
+      <div class="final-trophy">🏆</div>
+      <div class="final-winner">${winner ? winner+' wins!' : "It's a draw!"}</div>
+      <div class="final-score">${n1} ${G.quiz.p1Pts} — ${G.quiz.p2Pts} ${n2}</div>
+      ${gNote}
+      ${!G.guestMode ? `<div class="score-bar" style="margin-top:1rem;"><div class="score-card"><div class="sname">${G.p1.name} total</div><div class="spts">${G.p1.score}</div></div><div class="score-card"><div class="sname">${G.p2.name} total</div><div class="spts">${G.p2.score}</div></div></div>` : ''}
+      ${!G.guestMode ? `<button class="btn btn-secondary" onclick="reviewQuiz('${TODAY}')">Review questions & answers</button>` : ''}
+      <button class="btn btn-primary" onclick="showScreen('screen-home')">Back to home</button>
+    </div>`;
+  showScreen('screen-final');
+}
+
+// ============================================================
+// HISTORY
+// ============================================================
+async function renderHistory() {
+  document.getElementById('history-content').innerHTML = '<div class="loading"><div class="loading-icon">📚</div>Loading history...</div>';
+  try {
+    const all = await dbGet('quizzes');
+    const guestSessions = G.guestHistory || [];
+    if (!all && !guestSessions.length) {
+      document.getElementById('history-content').innerHTML = '<div class="loading"><div class="loading-icon">📭</div>No history yet.<br><span style="font-size:13px;">Complete today\'s quiz to start your archive!</span></div>';
+      return;
+    }
+    const sorted = all ? Object.keys(all).sort().reverse() : [];
+    let html = '<div class="card" style="padding:0.5rem 1rem;">';
+    for (const dateStr of sorted) {
+      const d = all[dateStr];
+      const isToday = dateStr === TODAY;
+      if (d.completed) {
+        const w = d.p1pts>d.p2pts ? d.p1name : d.p2pts>d.p1pts ? d.p2name : null;
+        html += `<div class="history-row" onclick="reviewQuiz('${dateStr}')">
+          <div><div class="history-date">${fmtDate(dateStr)}${isToday?' <span class="pill pill-green">Today</span>':''}</div>
+          <div class="history-meta">${d.p1name} ${d.p1pts} — ${d.p2pts} ${d.p2name} · ${w?w+' won':'Draw'}</div></div>
+          <span style="color:var(--text3);font-size:20px;">›</span></div>`;
+      } else {
+        html += `<div class="history-row" onclick="goDaily()">
+          <div><div class="history-date">${fmtDate(dateStr)} <span class="pill pill-amber">In progress</span></div>
+          <div class="history-meta">Question ${(d.quizState?.current||0)+1} of 10</div></div>
+          <span style="color:var(--text3);font-size:20px;">›</span></div>`;
+      }
+    }
+    html += '</div>';
+    if (guestSessions.length) {
+      html += `<div class="section-label">Guest sessions <span class="pill pill-purple">not in main stats</span></div><div class="card" style="padding:0.5rem 1rem;">`;
+      [...guestSessions].reverse().slice(0,10).forEach(s => {
+        html += `<div class="history-row" style="cursor:default;">
+          <div><div class="history-date">${fmtDate(s.date)} <span class="pill pill-purple">Guest</span></div>
+          <div class="history-meta">${s.p1name} ${s.p1pts} — ${s.p2pts} ${s.p2name} · ${s.winner?s.winner+' won':'Draw'}</div></div></div>`;
+      });
+      html += '</div>';
+    }
+    document.getElementById('history-content').innerHTML = html;
+  } catch(e) { document.getElementById('history-content').innerHTML = '<div class="loading">Could not load history.</div>'; }
+}
+
+async function reviewQuiz(dateStr) {
+  showScreen('screen-review');
+  document.getElementById('review-title').textContent = fmtDate(dateStr);
+  document.getElementById('review-content').innerHTML = '<div class="loading">Loading...</div>';
+  try {
+    const d = await dbGet('quizzes/' + dateStr);
+    if (!d || !d.completed || !d.questions) { document.getElementById('review-content').innerHTML = '<div class="loading">Quiz not found or not completed yet.</div>'; return; }
+    const winner = d.p1pts>d.p2pts ? d.p1name : d.p2pts>d.p1pts ? d.p2name : null;
+    let html = `<div class="score-bar"><div class="score-card"><div class="sname">${d.p1name}</div><div class="spts">${d.p1pts}</div></div><div class="score-card"><div class="sname">${d.p2name}</div><div class="spts">${d.p2pts}</div></div></div>
+    <div style="text-align:center;font-size:14px;color:var(--text2);margin:4px 0 1rem;">${winner?'🏆 '+winner+' won':'🤝 Draw'}</div>`;
+    d.questions.forEach((q,i) => {
+      const correct = q.playerAnswer===q.ans;
+      const who = q.playerWho===1 ? d.p1name : d.p2name;
+      html += `<div class="review-q">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span class="pill pill-blue" style="margin:0;">${q.cat}</span>
+          <span style="font-size:12px;color:var(--text3);">${who}</span>
+        </div>
+        <div style="font-size:14px;color:var(--text);margin-bottom:4px;">${i+1}. ${q.q}</div>
+        <div style="font-size:13px;color:${correct?'var(--green-dark)':'var(--red-dark)'};">${correct?'✓':'✗'} ${q.opts[q.ans]}</div>
+        <div class="fact" style="margin-top:3px;">💡 ${q.fact}</div>
+      </div>`;
+    });
+    document.getElementById('review-content').innerHTML = html;
+  } catch(e) { document.getElementById('review-content').innerHTML = '<div class="loading">Failed to load.</div>'; }
+}
+
+// ============================================================
+// CELEBRITY GAME
+// ============================================================
+async function startCeleb() {
+  showScreen('screen-celeb');
+  document.getElementById('p1-name-celeb').textContent = activeName(1);
+  document.getElementById('p2-name-celeb').textContent = activeName(2);
+  G.celeb = { celebs:[], current:0, clueIdx:0, p1Pts:0, p2Pts:0, currentPlayer:1, revealed:false };
+  document.getElementById('celeb-area').innerHTML = '<div class="loading"><div class="loading-icon">🌟</div>Summoning celebrities...</div>';
+  try {
+    const text = await callClaude(`Generate 8 "Guess the Celebrity" rounds. Mix musicians, actors, athletes, TV personalities, politicians, royals — variety of eras, skew towards people well-known in the UK. 5 clues per celebrity, ordered hardest to easiest. Clues must NOT say the name. Return ONLY valid JSON:\n[{"name":"Celebrity Name","category":"Musician","clues":["Vague","Clearer","Warmer","Obvious","Giveaway"]}]`, 1400);
+    G.celeb.celebs = parseJSON(text);
+    renderCeleb();
+  } catch(e) {
+    document.getElementById('celeb-area').innerHTML = `<div class="loading" style="color:var(--red);">Failed. <button class="btn btn-secondary" style="margin-top:10px;width:auto;padding:8px 20px;" onclick="startCeleb()">Retry</button></div>`;
+  }
+}
+
+function renderCeleb() {
+  const c = G.celeb;
+  if (c.current >= c.celebs.length) { showCelebResults(); return; }
+  const celeb = c.celebs[c.current];
+  const guesser = activeName(c.currentPlayer);
+  const clueGiver = activeName(c.currentPlayer===1?2:1);
+  const ptsLeft = 5 - c.clueIdx;
+  document.getElementById('p1-celeb-pts').textContent = c.p1Pts;
+  document.getElementById('p2-celeb-pts').textContent = c.p2Pts;
+  document.getElementById('p1-celeb-card').classList.toggle('active-player', c.currentPlayer===1);
+  document.getElementById('p2-celeb-card').classList.toggle('active-player', c.currentPlayer===2);
+  if (!c.revealed) {
+    let ch = '';
+    for (let i=0; i<=c.clueIdx; i++) {
+      const pts=5-i; const pc=pts>=4?'pill-green':pts>=3?'pill-amber':'pill-red';
+      ch+=`<div class="clue-item"><div class="clue-num">Clue ${i+1} <span class="pill ${pc}" style="font-size:10px;">${pts} pts</span></div>${celeb.clues[i]}</div>`;
+    }
+    const nxt=ptsLeft-1; const npc=nxt>=4?'pill-green':nxt>=3?'pill-amber':'pill-red';
+    document.getElementById('celeb-area').innerHTML = `
+      <div class="who-turn">📱 <strong>${clueGiver}</strong> reads · <strong>${guesser}</strong> guesses</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:6px 0;">
+        <span class="pill pill-blue">${celeb.category}</span>
+        <span style="font-size:13px;color:var(--text2);">Celebrity ${c.current+1} of ${c.celebs.length}</span>
+      </div>
+      <div class="card-surface">${ch}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;">
+        ${c.clueIdx<4?`<button class="btn btn-secondary" style="margin:0;" onclick="nextClue()">Next clue <span class="pill ${npc}" style="font-size:10px;">${nxt} pts</span></button>`:'<div></div>'}
+        <button class="btn btn-green" style="margin:0;" onclick="celebCorrect()">✓ Got it! (${ptsLeft} pts)</button>
+      </div>
+      <button class="btn" style="color:var(--red);border:1px solid var(--red);background:transparent;" onclick="celebSkip()">✗ Give up — reveal answer</button>`;
+  } else {
+    document.getElementById('celeb-area').innerHTML = `
+      <div class="card" style="text-align:center;padding:2rem 1rem;">
+        <div style="font-size:36px;margin-bottom:10px;">🌟</div>
+        <div style="font-size:24px;font-weight:700;color:var(--text);">${celeb.name}</div>
+        <div style="font-size:14px;color:var(--text2);margin-top:4px;">${celeb.category}</div>
+      </div>
+      <button class="btn btn-primary" onclick="celebNext()">Next celebrity →</button>`;
+  }
+}
+
+function nextClue() { if (G.celeb.clueIdx<4) { G.celeb.clueIdx++; renderCeleb(); } }
+function celebCorrect() {
+  const pts=5-G.celeb.clueIdx;
+  if (G.celeb.currentPlayer===1) G.celeb.p1Pts+=pts; else G.celeb.p2Pts+=pts;
+  G.celeb.revealed=true; renderCeleb();
+}
+function celebSkip() { G.celeb.revealed=true; renderCeleb(); }
+function celebNext() { G.celeb.current++; G.celeb.clueIdx=0; G.celeb.revealed=false; G.celeb.currentPlayer=G.celeb.currentPlayer===1?2:1; renderCeleb(); }
+
+async function showCelebResults() {
+  const n1=activeName(1), n2=activeName(2);
+  const winner=G.celeb.p1Pts>G.celeb.p2Pts?n1:G.celeb.p2Pts>G.celeb.p1Pts?n2:null;
+  if (!G.guestMode) { G.p1.score+=G.celeb.p1Pts; G.p2.score+=G.celeb.p2Pts; G.p1.celebPts+=G.celeb.p1Pts; G.p2.celebPts+=G.celeb.p2Pts; await persistSettings(); }
+  const gNote=G.guestMode?`<div style="background:var(--purple-light);border-radius:var(--radius);padding:8px 14px;font-size:13px;color:var(--purple-dark);text-align:center;margin-top:8px;">🎮 Guest session — not added to main totals</div>`:'';
+  document.getElementById('final-content').innerHTML = `<div style="padding:1rem;">
+    <div class="final-trophy">🌟</div>
+    <div class="final-winner">${winner?winner+' wins!':"It's a draw!"}</div>
+    <div class="final-score">${n1} ${G.celeb.p1Pts} — ${G.celeb.p2Pts} ${n2}</div>
+    ${gNote}
+    ${!G.guestMode?`<div class="score-bar" style="margin-top:1rem;"><div class="score-card"><div class="sname">${G.p1.name} total</div><div class="spts">${G.p1.score}</div></div><div class="score-card"><div class="sname">${G.p2.name} total</div><div class="spts">${G.p2.score}</div></div></div>`:''}
+    <button class="btn btn-primary" onclick="showScreen('screen-home')">Back to home</button>
+    <button class="btn btn-secondary" onclick="startCeleb()">Play again</button></div>`;
+  showScreen('screen-final');
+}
+
+// ============================================================
+// LIGHTNING ROUND
+// ============================================================
+let lQs=[],lIdx=0,lCorrect=0,lWrong=0,lTimer=null,lTimeLeft=60,lTurn=1,lP1Score=0;
+
+async function startLightning() {
+  const cat=G.selectedLightningCat;
+  document.getElementById('lightning-setup').style.display='none';
+  document.getElementById('lightning-game').style.display='block';
+  lCorrect=0;lWrong=0;lTimeLeft=60;lIdx=0;lTurn=1;
+  document.getElementById('lc-badge').textContent='0 ✓';
+  document.getElementById('lw-badge').textContent='0 ✗';
+  document.getElementById('timer-bar').style.background='var(--green)';
+  document.getElementById('l-who-label').textContent=activeName(1)+"'s turn — shout the answer!";
+  document.getElementById('lq-text').textContent='Loading questions...';
+  document.getElementById('la-text').textContent='';
+  try {
+    const text=await callClaude(`Generate 20 rapid-fire trivia questions${cat!=='Mix'?' on '+cat:''}. Short snappy questions, clear concise answers. Mix of difficulty. Return ONLY valid JSON:\n[{"q":"Short question?","a":"Short answer"}]`);
+    lQs=parseJSON(text); renderLQ(); startLTimer();
+  } catch(e) { document.getElementById('lq-text').textContent='Error. Go back and retry.'; }
+}
+
+function renderLQ() { if(lIdx>=lQs.length)lIdx=0; document.getElementById('lq-text').textContent=lQs[lIdx].q; document.getElementById('la-text').textContent='Answer: '+lQs[lIdx].a; }
+
+function startLTimer() {
+  lTimer=setInterval(()=>{
+    lTimeLeft--;
+    document.getElementById('timer-display').textContent=lTimeLeft;
+    document.getElementById('timer-bar').style.width=Math.round(lTimeLeft/60*100)+'%';
+    if(lTimeLeft<=10) document.getElementById('timer-bar').style.background='var(--red)';
+    if(lTimeLeft<=0){clearInterval(lTimer);lightningRoundOver();}
+  },1000);
+}
+
+function lightningAnswer(correct) {
+  if(correct){lCorrect++;document.getElementById('lc-badge').textContent=lCorrect+' ✓';}
+  else{lWrong++;document.getElementById('lw-badge').textContent=lWrong+' ✗';}
+  lIdx++; if(lTimeLeft>0)renderLQ();
+}
+
+async function lightningRoundOver() {
+  document.getElementById('lightning-game').style.display='none';
+  if(lTurn===1){
+    lP1Score=lCorrect; lTurn=2;
+    document.getElementById('lightning-setup').style.display='block';
+    document.getElementById('lightning-setup').innerHTML=`
+      <div class="card" style="text-align:center;padding:2rem 1rem;">
+        <div style="font-size:36px;margin-bottom:8px;">⏱</div>
+        <div style="font-size:20px;font-weight:700;">${activeName(1)} scored ${lP1Score}</div>
+        <div style="font-size:14px;color:var(--text2);margin-top:4px;">Now ${activeName(2)}'s turn!</div>
+      </div>
+      <button class="btn btn-primary" onclick="startLightningP2()">Start ${activeName(2)}'s round →</button>`;
+  } else {
+    const p2=lCorrect,p1=lP1Score,n1=activeName(1),n2=activeName(2);
+    const winner=p1>p2?n1:p2>p1?n2:null;
+    if(!G.guestMode){G.p1.score+=p1;G.p2.score+=p2;G.p1.lightningPts+=p1;G.p2.lightningPts+=p2;await persistSettings();}
+    const gNote=G.guestMode?`<div style="background:var(--purple-light);border-radius:var(--radius);padding:8px 14px;font-size:13px;color:var(--purple-dark);text-align:center;margin-top:8px;">🎮 Guest session — not added to main totals</div>`:'';
+    document.getElementById('final-content').innerHTML=`<div style="padding:1rem;">
+      <div class="final-trophy">⚡</div>
+      <div class="final-winner">${winner?winner+' wins!':"It's a draw!"}</div>
+      <div class="final-score">${n1} ${p1} — ${p2} ${n2}</div>
+      ${gNote}
+      ${!G.guestMode?`<div class="score-bar" style="margin-top:1rem;"><div class="score-card"><div class="sname">${G.p1.name} total</div><div class="spts">${G.p1.score}</div></div><div class="score-card"><div class="sname">${G.p2.name} total</div><div class="spts">${G.p2.score}</div></div></div>`:''}
+      <button class="btn btn-primary" onclick="showScreen('screen-home')">Back to home</button>
+      <button class="btn btn-secondary" onclick="showScreen('screen-lightning')">Play again</button></div>`;
+    showScreen('screen-final');
+  }
+}
+
+function startLightningP2() {
+  document.getElementById('lightning-setup').style.display='none';
+  document.getElementById('lightning-game').style.display='block';
+  lCorrect=0;lWrong=0;lTimeLeft=60;lIdx=0;
+  document.getElementById('lc-badge').textContent='0 ✓';
+  document.getElementById('lw-badge').textContent='0 ✗';
+  document.getElementById('timer-bar').style.width='100%';
+  document.getElementById('timer-bar').style.background='var(--green)';
+  document.getElementById('timer-display').textContent='60';
+  document.getElementById('l-who-label').textContent=activeName(2)+"'s turn — shout the answer!";
+  renderLQ(); startLTimer();
+}
+
+// ============================================================
+// WOULD YOU RATHER
+// ============================================================
+let wyrQs=[],wyrIdx=0,wyrP1C=null,wyrP2C=null,wyrStage='p1';
+
+async function startWyr() {
+  showScreen('screen-wyr');
+  document.getElementById('wyr-content').innerHTML='<div class="loading"><div class="loading-icon">⚡</div>Generating dilemmas...</div>';
+  try {
+    const text=await callClaude(`Generate 8 fun "Would You Rather" questions for a UK couple on a road trip. Lighthearted, revealing, thought-provoking — mix funny and meaningful. Return ONLY valid JSON:\n[{"q":"Would you rather...","a":"Option A","b":"Option B"}]`);
+    wyrQs=parseJSON(text); wyrIdx=0;wyrP1C=null;wyrStage='p1'; renderWyr();
+  } catch(e) {
+    document.getElementById('wyr-content').innerHTML=`<div class="loading" style="color:var(--red);">Failed. <button class="btn btn-secondary" style="margin-top:10px;width:auto;padding:8px 20px;" onclick="startWyr()">Retry</button></div>`;
+  }
+}
+
+function renderWyr() {
+  const q=wyrQs[wyrIdx]; const el=document.getElementById('wyr-content');
+  const n1=activeName(1),n2=activeName(2);
+  if(wyrStage==='p1'){
+    el.innerHTML=`<div class="who-turn">📱 <strong>${n1}</strong> — pick secretly, don't show ${n2}!</div>
+    <div class="card"><div class="q-num">Dilemma ${wyrIdx+1} of ${wyrQs.length}</div>
+    <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:1rem;">Would you rather...</div>
+    <div class="wyr-opts"><button class="wyr-btn" onclick="wyrChoose('a')">${q.a}</button><button class="wyr-btn" onclick="wyrChoose('b')">${q.b}</button></div></div>`;
+  } else if(wyrStage==='p2'){
+    el.innerHTML=`<div class="who-turn">📱 Pass to <strong>${n2}</strong> — your turn!</div>
+    <div class="card"><div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:1rem;">Would you rather...</div>
+    <div class="wyr-opts"><button class="wyr-btn" onclick="wyrChoose2('a')">${q.a}</button><button class="wyr-btn" onclick="wyrChoose2('b')">${q.b}</button></div></div>`;
+  } else {
+    const match=wyrP1C===wyrP2C;
+    el.innerHTML=`<div class="card">
+    <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:0.5rem;">Would you rather...<br><span style="font-size:13px;font-weight:400;color:var(--text2);">${q.a} / ${q.b}</span></div>
+    <div class="wyr-reveal">
+      <div class="wyr-choice a"><div style="font-size:11px;margin-bottom:4px;">${n1}</div>${wyrP1C==='a'?q.a:q.b}</div>
+      <div class="wyr-choice b"><div style="font-size:11px;margin-bottom:4px;">${n2}</div>${wyrP2C==='a'?q.a:q.b}</div>
+    </div>
+    <div style="text-align:center;margin-top:12px;font-size:18px;font-weight:700;color:var(--text);">${match?'🎉 You match!':'🤔 You differ!'}</div></div>
+    ${wyrIdx<wyrQs.length-1?`<button class="btn btn-primary" onclick="wyrNext()">Next dilemma →</button>`:`<button class="btn btn-primary" onclick="showScreen('screen-home')">All done! 🎉</button>`}`;
+  }
+}
+function wyrChoose(c){wyrP1C=c;wyrStage='p2';renderWyr();}
+function wyrChoose2(c){wyrP2C=c;wyrStage='reveal';renderWyr();}
+function wyrNext(){wyrIdx++;wyrP1C=null;wyrStage='p1';renderWyr();}
+
+// ============================================================
+// CHIP TOGGLES
+// ============================================================
+document.querySelectorAll('#daily-cats .cat-chip').forEach(c=>c.addEventListener('click',()=>c.classList.toggle('selected')));
+document.querySelectorAll('#lightning-cats .cat-chip').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('#lightning-cats .cat-chip').forEach(x=>x.classList.remove('selected'));
+  c.classList.add('selected'); G.selectedLightningCat=c.dataset.cat;
+}));
+
+// ============================================================
+// BOOT
+// ============================================================
+loadPersisted();
+</script>
+</body>
+</html>
