@@ -29,20 +29,20 @@
   ============================================================ -->
 
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, set, get, onValue, push } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
 
     // ============================================================
     // REPLACE THIS WITH YOUR FIREBASE CONFIG
     // ============================================================
-    const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT.firebaseapp.com",
-      databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-      projectId: "YOUR_PROJECT",
-      storageBucket: "YOUR_PROJECT.appspot.com",
-      messagingSenderId: "YOUR_SENDER_ID",
-      appId: "YOUR_APP_ID"
+const firebaseConfig = {
+  apiKey: "AIzaSyAv4YAv9ktkZVUPyfzaJC46v7Wi6_zeOAw",
+  authDomain: "roadtrip-quiz-29577.firebaseapp.com",
+  projectId: "roadtrip-quiz-29577",
+  storageBucket: "roadtrip-quiz-29577.firebasestorage.app",
+  messagingSenderId: "683372232213",
+  appId: "1:683372232213:web:c5cfad60ecb72eec7b181c",
+  measurementId: "G-1FJ889T5X5"
     };
     // ============================================================
 
@@ -50,8 +50,8 @@
     let firebaseReady = false;
 
     try {
-      const app = initializeApp(firebaseConfig);
-      db = getDatabase(app);
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);      db = getDatabase(app);
       firebaseReady = true;
       window._db = db;
       window._dbRef = ref;
