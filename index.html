@@ -820,7 +820,7 @@ const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE";
 async function callClaude(prompt, maxTokens) {
   // Function name kept as callClaude so the rest of the app doesn't need changes —
   // it now calls Google's free Gemini API instead.
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${AQ.Ab8RN6IFPZLeSdgOlLwOrXMm0SK93nvk-Kq1J4KFLFYtRdGpYg}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
