@@ -29,20 +29,20 @@
   ============================================================ -->
 
   <script type="module">
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, set, get, onValue, push } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
     // ============================================================
     // REPLACE THIS WITH YOUR FIREBASE CONFIG
     // ============================================================
-const firebaseConfig = {
-  apiKey: "AIzaSyAv4YAv9ktkZVUPyfzaJC46v7Wi6_zeOAw",
-  authDomain: "roadtrip-quiz-29577.firebaseapp.com",
-  projectId: "roadtrip-quiz-29577",
-  storageBucket: "roadtrip-quiz-29577.firebasestorage.app",
-  messagingSenderId: "683372232213",
-  appId: "1:683372232213:web:c5cfad60ecb72eec7b181c",
-  measurementId: "G-1FJ889T5X5"
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+      projectId: "YOUR_PROJECT",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
     };
     // ============================================================
 
@@ -50,8 +50,8 @@ const firebaseConfig = {
     let firebaseReady = false;
 
     try {
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);      db = getDatabase(app);
+      const app = initializeApp(firebaseConfig);
+      db = getDatabase(app);
       firebaseReady = true;
       window._db = db;
       window._dbRef = ref;
@@ -547,17 +547,27 @@ const analytics = getAnalytics(app);      db = getDatabase(app);
   </div>
 
   <div class="setup-step">
-    <div class="step-title"><span class="step-num">5</span>Add your Firebase config to index.html</div>
+    <div class="step-title"><span class="step-num">5</span>Get a free Gemini API key (for quiz questions)</div>
     <div class="step-body">
-      Open <strong>index.html</strong> in a text editor. Find the section that says <code>REPLACE THIS WITH YOUR FIREBASE CONFIG</code> and paste in your config values.<br><br>
-      The config looks like:
-      <div class="code-block">apiKey: "AIzaSy...",<br>authDomain: "roadtrip-quiz.firebaseapp.com",<br>databaseURL: "https://roadtrip-quiz-default-rtdb.firebaseio.com",<br>...</div>
-      Save the file and re-upload it to GitHub.
+      Go to <strong>aistudio.google.com</strong> and sign in with a Google account (the same one you used for Firebase is fine).<br><br>
+      Click <strong>"Get API key"</strong> → <strong>"Create API key"</strong>. It's genuinely free — no card needed.<br><br>
+      Copy the key (starts with something like <code>AIzaSy...</code>).<br><br>
+      <div class="setup-note">⚠️ Keep this key private — never paste it into a chat message or share it publicly. Treat it like a password.</div>
     </div>
   </div>
 
   <div class="setup-step">
-    <div class="step-title"><span class="step-num">6</span>Add to home screen on both phones</div>
+    <div class="step-title"><span class="step-num">6</span>Add both config blocks to index.html</div>
+    <div class="step-body">
+      Open <strong>index.html</strong> in a text editor.<br><br>
+      Find <code>REPLACE THIS WITH YOUR FIREBASE CONFIG</code> and paste in your Firebase values from step 2.<br><br>
+      Find <code>YOUR_GEMINI_API_KEY_HERE</code> and replace it with your Gemini key from step 5.<br><br>
+      Save the file and re-upload it to GitHub, replacing the old version.
+    </div>
+  </div>
+
+  <div class="setup-step">
+    <div class="step-title"><span class="step-num">7</span>Add to home screen on both phones</div>
     <div class="step-body">
       Open the GitHub Pages URL in Safari (iPhone) or Chrome (Android).<br><br>
       <strong>iPhone:</strong> Tap the Share button → "Add to Home Screen" → Add<br>
@@ -567,7 +577,7 @@ const analytics = getAnalytics(app);      db = getDatabase(app);
   </div>
 
   <div class="setup-note" style="margin-top:1rem;">
-    💡 The Anthropic Claude API key is already in the app — it's called via the API endpoint and handled securely. You don't need to add it separately.
+    💡 Make your GitHub repository <strong>Private</strong> (Settings → General → Danger Zone → Change visibility) so no one else can see your API keys in the source code. GitHub Pages still works fine with private repos on free accounts tied to a GitHub Pro/Team plan — if you're on a fully free personal account and Pages requires Public, consider a simple password gate instead, or ask me to add one.
   </div>
   <button class="btn btn-primary" onclick="showScreen('screen-home')" style="margin-top:1rem;">Got it — back to app</button>
 </div>
@@ -802,17 +812,43 @@ function renderGuestStats() {
 // ============================================================
 // CLAUDE API
 // ============================================================
+// ============================================================
+// GEMINI API CONFIG — paste your free key from aistudio.google.com here
+// ============================================================
+const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE";
+
 async function callClaude(prompt, maxTokens) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  // Function name kept as callClaude so the rest of the app doesn't need changes —
+  // it now calls Google's free Gemini API instead.
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${AQ.Ab8RN6IFPZLeSdgOlLwOrXMm0SK93nvk-Kq1J4KFLFYtRdGpYg}`;
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: maxTokens||1000, messages: [{ role:'user', content: prompt }] })
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: maxTokens || 1000, temperature: 0.9 }
+    })
   });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error('Gemini API error: ' + res.status + ' ' + errText);
+  }
   const data = await res.json();
-  return data.content[0].text;
+  if (!data.candidates || !data.candidates[0]) {
+    throw new Error('No response from Gemini — check your API key');
+  }
+  return data.candidates[0].content.parts[0].text;
 }
 
-function parseJSON(t) { return JSON.parse(t.replace(/```json|```/g,'').trim()); }
+function parseJSON(t) {
+  let cleaned = t.replace(/```json|```/g, '').trim();
+  // Gemini sometimes adds leading/trailing text — extract the array/object
+  const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
+  const objMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (arrayMatch) cleaned = arrayMatch[0];
+  else if (objMatch) cleaned = objMatch[0];
+  return JSON.parse(cleaned);
+}
 
 function fmtDate(ds) {
   const d = new Date(ds + 'T12:00:00');
